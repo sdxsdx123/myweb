@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>车间总览 · 数据采集与可视化</title>
+<meta name="description" content="车间数据可视化系统总览大屏：设备状态、产量、OEE 与告警，数据由内置虚拟发生器生成。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23060a0b'/%3E%3Cpath d='M5 5h22v22H5z' fill='none' stroke='%2331d4c4' stroke-width='1.5'/%3E%3Cpath d='M11 11h10v10H11z' fill='none' stroke='%236b787a'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="tb-inner">
+    <a class="brand" href="./index.html">
+      <span class="b-mark"></span>
+      <span class="b-txt"><b>车间数据可视化</b><i>PLANT VISUAL · PV-2026-01</i></span>
+    </a>
+    <nav class="nav">
+      <a href="./index.html" class="on">01 总览大屏</a>
+      <a href="./devices.html">02 设备详情</a>
+      <a href="./alarms.html">03 告警中心</a>
+      <a href="./ingest.html">04 数据接入</a>
+    </nav>
+    <div class="tb-meta">
+      <span class="live" id="livePill"><i></i><span id="liveTxt">实时 · 虚拟数据</span></span>
+      <span class="clock" id="clock">--:--:--</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="page-head">
+    <div class="ph-t">
+      <div class="num">01 / OVERVIEW</div>
+      <h1>车间总览</h1>
+      <p>12 台设备、3 条产线。三维布置图、状态色与统计图读的是同一条设备快照，同一时间基准。</p>
+    </div>
+    <div class="ctrl">
+      <button class="btn" id="btnPause" aria-pressed="false" type="button">暂停采集</button>
+      <button class="btn danger" id="btnFault" type="button">注入故障</button>
+      <button class="btn" id="btnReset" type="button">复位视角</button>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi">
+      <span class="k-l">综合 OEE</span>
+      <div class="k-v"><span id="kOee">—</span><small>%</small></div>
+      <div class="k-s"><span>目标 85</span><span id="kOeeDelta">—</span></div>
+      <div class="k-spark" id="kOeeSpark"></div>
+    </div>
+    <div class="kpi">
+      <span class="k-l">当班产出</span>
+      <div class="k-v"><span id="kOut">—</span><small>件</small></div>
+      <div class="k-s"><span>计划 <b id="kPlan" style="color:#6b787a;font-weight:400">—</b></span><span id="kRate">—</span></div>
+      <div class="k-spark" id="kOutSpark"></div>
+    </div>
+    <div class="kpi">
+      <span class="k-l">设备稼动率</span>
+      <div class="k-v"><span id="kUtil">—</span><small>%</small></div>
+      <div class="k-s"><span id="kRun">运行 0 / 11</span><span id="kIdle">待机 0</span></div>
+      <div class="k-spark" id="kUtilSpark"></div>
+    </div>
+    <div class="kpi" id="kpiAlarm">
+      <span class="k-l">活动告警</span>
+      <div class="k-v"><span id="kAlarm">—</span><small>条</small></div>
+      <div class="k-s"><span id="kUnack">未确认 0</span><span>按等级排序</span></div>
+      <div class="k-spark" id="kAlarmSpark"></div>
+    </div>
+  </div>
+
+  <div class="ov-grid">
+    <div class="panel">
+      <div class="panel-hd"><h2>装配车间 · 等轴测布置图</h2><span class="unit">SCENE 01 · 拖动旋转 / 滚轮缩放</span></div>
+      <div class="scene-frame">
+        <canvas id="scene" aria-label="装配车间三维布置图"></canvas>
+        <div class="scene-cap"><b>WORLD</b>42 × 26 m · 等轴测<br>点选设备读取快照</div>
+        <div class="scene-tools">
+          <button class="btn" id="btnZoomIn" type="button">放大</button>
+          <button class="btn" id="btnZoomOut" type="button">缩小</button>
+        </div>
+        <div class="scene-legend">
+          <span><i style="background:#31d4c4"></i>运行</span>
+          <span><i style="background:#6b787a"></i>待机</span>
+          <span><i style="background:#bf8a3f"></i>预警</span>
+          <span><i style="background:#b0543e"></i>故障</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ov-side">
+      <div class="panel">
+        <div class="panel-hd"><h3>选中设备</h3><span class="unit" id="hudTs">TS —</span></div>
+        <div class="panel-bd hud">
+          <div class="hud-top">
+            <span class="hud-id" id="hudId">CNC-01</span>
+            <span id="hudState"></span>
+          </div>
+          <div class="hud-type" id="hudType">加工中心 · L1</div>
+          <dl class="hud-dl">
+            <div><dt>OEE</dt><dd id="hudOee">—<em>%</em></dd></div>
+            <div><dt>主轴温度</dt><dd id="hudTemp">—<em>℃</em></dd></div>
+            <div><dt>节拍</dt><dd id="hudCycle">—<em>s</em></dd></div>
+            <div><dt>当班产出</dt><dd id="hudOut">—<em>件</em></dd></div>
+          </dl>
+          <div class="hud-spark"><div id="hudSpark" style="height:38px"></div></div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;color:var(--ash-2)">
+              <span>工单 <b id="hudOrder" style="color:#c6d1d0;font-weight:400">—</b></span>
+              <span id="hudProgText">—</span>
+            </div>
+            <div class="progress"><span id="hudProg"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-hd"><h3>产线概览</h3><span class="unit">当班达成</span></div>
+        <div class="panel-bd">
+          <div class="hud-bars" id="lineBars"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-hd"><h3>实时告警</h3><a class="unit" href="./alarms.html" style="color:#31d4c4">全部 →</a></div>
+        <div class="rows" id="miniAlarms"><div class="empty">暂无告警</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="charts">
+    <div class="panel chart-card">
+      <div class="panel-hd"><h3>24 小时产量趋势 · 三条产线</h3><span class="unit">件 / 小时</span></div>
+      <div class="panel-bd flush"><div class="chart-box" id="chartProd" style="height:236px"></div></div>
+      <div class="note">读的是<b>线间差距</b>与<b>交班掉点</b>：三条线在 14 点同时下探，阴影带标的就是这一段。</div>
+    </div>
+    <div class="panel chart-card">
+      <div class="panel-hd"><h3>OEE 对比</h3><span class="unit">% vs 目标 85</span></div>
+      <div class="panel-bd flush"><div class="chart-box" id="chartOee" style="height:236px"></div></div>
+      <div class="note">竖线是 85% 目标值，越过即达标。</div>
+    </div>
+    <div class="panel chart-card">
+      <div class="panel-hd"><h3>设备状态构成</h3><span class="unit">12 台 / 当前</span></div>
+      <div class="panel-bd" style="padding:8px 13px 10px">
+        <div class="chart-box" id="chartState" style="height:172px"></div>
+        <div class="state-legend" id="stateLegend"></div>
+      </div>
+      <div class="note">四态分开计数，<b>待机（灰）</b>越长，开机率掉得越快。</div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <p>本页全部数据由内置虚拟发生器生成，用于演示，不代表任何真实产线。</p>
+  <p>PV-2026-01 · REV A · 无后端 · 图表与三维全部本地渲染</p>
+</footer>
+
+<script src="./assets/plant.js"></script>
+<script src="./assets/charts.js"></script>
+<script src="./assets/scene.js"></script>
+<script src="./assets/overview.js"></script>
+</body>
+</html>

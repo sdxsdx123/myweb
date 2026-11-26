@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>设备详情 · 数据采集与可视化</title>
+<meta name="description" content="单台设备的实时快照、指标趋势、工单进度、点位表与告警记录。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23060a0b'/%3E%3Cpath d='M5 5h22v22H5z' fill='none' stroke='%2331d4c4' stroke-width='1.5'/%3E%3Cpath d='M11 11h10v10H11z' fill='none' stroke='%236b787a'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="tb-inner">
+    <a class="brand" href="./index.html">
+      <span class="b-mark"></span>
+      <span class="b-txt"><b>车间数据可视化</b><i>PLANT VISUAL · PV-2026-01</i></span>
+    </a>
+    <nav class="nav">
+      <a href="./index.html">01 总览大屏</a>
+      <a href="./devices.html" class="on">02 设备详情</a>
+      <a href="./alarms.html">03 告警中心</a>
+      <a href="./ingest.html">04 数据接入</a>
+    </nav>
+    <div class="tb-meta">
+      <span class="live" id="livePill"><i></i><span id="liveTxt">实时 · 虚拟数据</span></span>
+      <span class="clock" id="clock">--:--:--</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="page-head">
+    <div class="ph-t">
+      <div class="num">02 / DEVICES</div>
+      <h1>设备详情</h1>
+      <p>点左侧设备切换读数。所有指标、状态色与三维场景共用同一条快照，切换设备不换数据源。</p>
+    </div>
+    <div class="ctrl">
+      <button class="btn" id="btnPause" aria-pressed="false" type="button">暂停采集</button>
+      <button class="btn danger" id="btnFault" type="button">让该设备故障</button>
+    </div>
+  </div>
+
+  <div class="dev-grid">
+    <div class="panel">
+      <div class="panel-hd"><h3>设备列表</h3><span class="unit" id="devCount">12 台</span></div>
+      <div class="dev-filters" id="devFilters">
+        <input id="devSearch" type="search" placeholder="搜索设备编号 / 类型…" aria-label="搜索设备">
+        <button class="chip on" data-line="ALL" type="button">全部</button>
+        <button class="chip" data-line="L1" type="button">L1 加工线</button>
+        <button class="chip" data-line="L2" type="button">L2 装配线</button>
+        <button class="chip" data-line="L3" type="button">L3 总装线</button>
+      </div>
+      <div class="dev-list" id="devList"></div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <div class="panel-hd">
+          <h2><span id="dName">CNC-01</span> <span id="dType" style="font-family:var(--mono);font-size:10px;color:var(--ash-2);font-weight:400"></span></h2>
+          <span id="dState"></span>
+        </div>
+        <div class="panel-bd">
+          <div class="metric-grid">
+            <div class="metric">
+              <span class="m-l">OEE</span>
+              <span class="m-v" id="mOee">—<small> %</small></span>
+              <span class="m-g"><span id="mOeeBar"></span></span>
+            </div>
+            <div class="metric">
+              <span class="m-l">主轴温度</span>
+              <span class="m-v" id="mTemp">—<small> ℃</small></span>
+              <span class="m-g"><span id="mTempBar"></span></span>
+            </div>
+            <div class="metric">
+              <span class="m-l">节拍</span>
+              <span class="m-v" id="mCycle">—<small> s</small></span>
+              <span class="m-g"><span id="mCycleBar"></span></span>
+            </div>
+            <div class="metric">
+              <span class="m-l">振动</span>
+              <span class="m-v" id="mVib">—<small> mm/s</small></span>
+              <span class="m-g"><span id="mVibBar"></span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split2">
+        <div class="panel">
+          <div class="panel-hd">
+            <h3>实时趋势 · 90 点窗口</h3>
+            <span class="unit" id="trendChips">
+              <button class="chip on" data-k="temp" type="button">温度</button>
+              <button class="chip" data-k="cycle" type="button">节拍</button>
+              <button class="chip" data-k="oee" type="button">OEE</button>
+            </span>
+          </div>
+          <div class="panel-bd flush"><div class="chart-box" id="trendChart" style="height:206px"></div></div>
+          <div class="note" id="trendNote">采样 1 s · 环形缓冲 90 点 · 断流时保留最后有效值并标记数据陈旧</div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-hd"><h3>工单与达成</h3><span class="unit" id="dOrder">—</span></div>
+          <div class="panel-bd">
+            <div style="display:grid;grid-template-columns:112px 1fr;gap:12px;align-items:center">
+              <div class="chart-box" id="oeeGauge" style="height:96px"></div>
+              <dl class="kv">
+                <dt>产品</dt><dd id="dProduct">—</dd>
+                <dt>计划数</dt><dd id="dPlan">—</dd>
+                <dt>已完成</dt><dd id="dDone">—</dd>
+                <dt>节拍目标</dt><dd id="dTarget">—</dd>
+                <dt>良率</dt><dd id="dGood">—</dd>
+                <dt>能耗</dt><dd id="dPower">—</dd>
+              </dl>
+            </div>
+            <div class="progress" style="margin-top:12px"><span id="dProg"></span><i class="tick" style="left:85%"></i></div>
+            <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9.5px;color:var(--ash-2)">
+              <span>0</span><span id="dProgTxt">—</span><span>计划</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="split2">
+        <div class="panel">
+          <div class="panel-hd"><h3>当前点位</h3><span class="unit">POINTS · 归一后单位</span></div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>点位</th><th>含义</th><th style="text-align:right">读数</th><th>单位</th><th>判定</th></tr></thead>
+              <tbody id="pointRows"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-hd"><h3>该设备告警</h3><a class="unit" href="./alarms.html" style="color:#31d4c4">告警中心 →</a></div>
+          <div class="rows" id="devAlarms"><div class="empty">无告警记录</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <p>本页全部数据由内置虚拟发生器生成，用于演示，不代表任何真实产线。</p>
+  <p>PV-2026-01 · REV A · 无后端 · 图表与三维全部本地渲染</p>
+</footer>
+
+<script src="./assets/plant.js"></script>
+<script src="./assets/charts.js"></script>
+<script src="./assets/devices.js"></script>
+</body>
+</html>

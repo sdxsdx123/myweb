@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>数据接入 · 车间数据可视化</title>
+<meta name="description" content="纯前端能做什么、不能做什么：浏览器内的数据流水线、快照契约与本地导出校验，以及必须交给后端的部分。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23060a0b'/%3E%3Cpath d='M5 5h22v22H5z' fill='none' stroke='%2331d4c4' stroke-width='1.5'/%3E%3Cpath d='M11 11h10v10H11z' fill='none' stroke='%236b787a'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="tb-inner">
+    <a class="brand" href="./index.html">
+      <span class="b-mark"></span>
+      <span class="b-txt"><b>车间数据可视化</b><i>PLANT VISUAL · PV-2026-01</i></span>
+    </a>
+    <nav class="nav">
+      <a href="./index.html">01 总览大屏</a>
+      <a href="./devices.html">02 设备详情</a>
+      <a href="./alarms.html">03 告警中心</a>
+      <a href="./ingest.html" class="on">04 数据接入</a>
+    </nav>
+    <div class="tb-meta">
+      <span class="live"><i></i><span>说明页 · 静态</span></span>
+      <span class="clock" id="clock">--:--:--</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="page-head">
+    <div class="ph-t">
+      <div class="num">04 / PIPELINE</div>
+      <h1>数据接入说明</h1>
+      <p>这一页把边界说清楚：哪些事浏览器自己能做完，哪些必须交给网关或后端。四页共用同一套前端数据引擎，不发任何请求。</p>
+    </div>
+    <div class="ctrl">
+      <a class="btn" href="./index.html">回到总览 →</a>
+    </div>
+  </div>
+
+  <div class="flow">
+    <div class="step">
+      <span class="st-n">01 / SOURCE</span>
+      <h4>数据源 · 内置仿真器</h4>
+      <p>plant.js 用「班次基线 + 节拍噪声 + 事件注入」造出 12 台设备的状态、指标与产出，1 秒一拍，全部在浏览器里算完。</p>
+      <div class="st-tags"><span class="tag cy">纯前端</span><span class="tag">1 s / tick</span></div>
+    </div>
+    <div class="step">
+      <span class="st-n">02 / NORMALIZE</span>
+      <h4>归一 · 在生成端一次做掉</h4>
+      <p>单位、时区偏移、点位名在造数时就定好；下游页面只做格式化，不再乘系数、不再换算。</p>
+      <div class="st-tags"><span class="tag">mm/s · ℃ · s · kW</span><span class="tag">UTC+8</span></div>
+    </div>
+    <div class="step">
+      <span class="st-n">03 / BUFFER</span>
+      <h4>缓冲 · 内存环形队列</h4>
+      <p>每台设备保留最近 90 个采样点，四页共用同一份内存，切页不重算、不重新拉数。</p>
+      <div class="st-tags"><span class="tag">90 点</span><span class="tag">环形</span></div>
+    </div>
+    <div class="step">
+      <span class="st-n">04 / DISPATCH</span>
+      <h4>分发 · 订阅一次 tick</h4>
+      <p>PLANT.subscribe(fn) 把每秒的新值推给 KPI、图表、三维场景与 HUD，四个页面的口径自然一致。</p>
+      <div class="st-tags"><span class="tag">subscribe</span><span class="tag">单一定时器</span></div>
+    </div>
+    <div class="step">
+      <span class="st-n">05 / RENDER</span>
+      <h4>渲染 · SVG + Canvas 2D</h4>
+      <p>统计图用自绘 SVG，车间用 Canvas 2D 做等轴测投影；不引入 ECharts / Three.js，断网也能跑。</p>
+      <div class="st-tags"><span class="tag">零依赖</span><span class="tag">无 CDN</span></div>
+    </div>
+    <div class="step warn-step">
+      <span class="st-n">06 / BROWSER 边界</span>
+      <h4>浏览器做不了的事</h4>
+      <p>不能直连 PLC、读串口、订阅 MQTT、写数据库，也绕不过跨域限制。这些只能由网关或后端完成，前端只接收归一后的快照。</p>
+      <div class="st-tags"><span class="tag wn">需网关 / 后端</span></div>
+    </div>
+  </div>
+
+  <div class="two">
+    <div class="panel">
+      <div class="panel-hd"><h3>数据源的三种接法</h3><span class="unit">FRONT-END READY</span></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>方式</th><th>实现</th><th>刷新</th><th>适用场景与前提</th></tr></thead>
+          <tbody>
+            <tr><td><b>内置仿真器</b></td><td class="mono">plant.js</td><td class="mono">1 s</td><td>演示、联调、上墙前的渲染验证 · 已内置，零依赖</td></tr>
+            <tr><td><b>本地快照文件</b></td><td class="mono">FileReader</td><td class="mono">手动</td><td>回放真实快照、核对字段 · 文件由本页导出或后端提供</td></tr>
+            <tr><td><b>同源 HTTP 接口</b></td><td class="mono">fetch</td><td class="mono">1 s</td><td>有后端时的正式接法 · 需 http(s) 打开</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">前两种现在就能用：仿真器默认在跑，快照文件可在左侧面板<b>导出 / 校验</b>。第三种只交代接法，没有假装已经连上——浏览器不会凭空接进车间。</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-hd"><h3>设备状态语义</h3><span class="unit">STATE MAPPING</span></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>状态</th><th>判定依据</th><th>画面处理</th></tr></thead>
+          <tbody>
+            <tr><td><span class="st run"><i></i>运行</span></td><td>状态字运行位 = 1 且节拍正常</td><td>青色灯带常亮，地面光斑呼吸</td></tr>
+            <tr><td><span class="st idle"><i></i>待机</span></td><td>上电但未启动 / 换型 / 缺料</td><td>灰色，降低亮度，不计产出</td></tr>
+            <tr><td><span class="st warn"><i></i>预警</span></td><td>连续 3 个周期越预警阈值</td><td>琥珀色，光斑脉冲，进告警表</td></tr>
+            <tr><td><span class="st down"><i></i>故障</span></td><td>停机位 = 1 或安全联锁触发</td><td>赤色，光斑扩散，KPI 高亮</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">颜色只表达状态，不表达“好看”。同一状态在三维、列表、图表、告警表里必须是同一个色值。</div>
+    </div>
+  </div>
+
+  <div class="two" style="margin-top:14px">
+    <div class="panel">
+      <div class="panel-hd"><h3>快照模型</h3><span class="unit">SNAPSHOT · 1 s</span></div>
+      <div class="panel-bd">
+        <pre class="code">{
+  <span class="k">"ts"</span>: <span class="s">"2026-11-26T14:32:05+08:00"</span>,
+  <span class="k">"devices"</span>: [
+    {
+      <span class="k">"id"</span>: <span class="s">"CNC-01"</span>,
+      <span class="k">"line"</span>: <span class="s">"L1"</span>,
+      <span class="k">"state"</span>: <span class="s">"RUN"</span>,
+      <span class="k">"oee"</span>: <span class="n">86.4</span>,
+      <span class="k">"output"</span>: <span class="n">268</span>,
+      <span class="k">"plan"</span>: <span class="n">900</span>,
+      <span class="k">"order"</span>: <span class="s">"WO-2411-08"</span>,
+      <span class="k">"metrics"</span>: {
+        <span class="k">"spindle_temp"</span>: <span class="n">66.8</span>,
+        <span class="k">"cycle"</span>: <span class="n">41.2</span>,
+        <span class="k">"vibration"</span>: <span class="n">1.6</span>,
+        <span class="k">"power_kw"</span>: <span class="n">12</span>
+      }
+    }
+  ]
+}</pre>
+        <p class="small" style="margin-top:10px">四页共用这一份契约：<b>OEE、判定、持续时长</b>都由数据源一侧算好，页面只读不算，避免各端口径打架。</p>
+        <div class="snap-act">
+          <button class="btn" id="btnSnapOut" type="button">导出当前快照</button>
+          <label class="btn" for="snapIn">校验本地快照</label>
+          <input id="snapIn" type="file" accept=".json,application/json" hidden>
+        </div>
+        <p class="small snap-msg" id="snapMsg">快照由浏览器现场生成，不请求任何接口；也可以选一个同结构的文件回来校验。</p>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-hd"><h3>四张表</h3><span class="unit">MINIMAL SCHEMA</span></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>表</th><th>主键</th><th>关键字段</th><th>更新时机</th></tr></thead>
+          <tbody>
+            <tr><td><b class="mono">devices</b></td><td class="mono">device_id</td><td>name · line · kind · state · updated_at</td><td>状态变化时</td></tr>
+            <tr><td><b class="mono">points</b></td><td class="mono">device_id + point</td><td>value · unit · quality · ts</td><td>1 s</td></tr>
+            <tr><td><b class="mono">alarms</b></td><td class="mono">alarm_id</td><td>device_id · level · msg · ack · recovered_at</td><td>事件触发</td></tr>
+            <tr><td><b class="mono">orders</b></td><td class="mono">order_no</td><td>device_id · product · plan · done · target_cycle</td><td>班次 / 完工</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">这是将来落库的最小结构；本样机不落库——<b>devices / alarms / orders</b> 由 plant.js 在内存里维护，点位值只留 90 点环形缓冲，刷新即重来。</div>
+    </div>
+  </div>
+
+  <div class="three" style="margin-top:14px">
+    <div class="panel">
+      <div class="panel-hd"><h3>归一：单位</h3><span class="unit">UNIT</span></div>
+      <div class="panel-bd">
+        <p class="body">温度统一 <strong>℃</strong>，振动统一 <strong>mm/s</strong>，节拍统一 <strong>秒</strong>，功率统一 <strong>kW</strong>。原始寄存器里的 0.1℃ / rpm 要在数据源一侧换算掉——样机里由 plant.js 直接产出工程单位，将来有网关时在网关做。</p>
+        <p class="small">理由：一旦让前端换算，同一台设备在不同页面会出现两个数。</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-hd"><h3>归一：时区</h3><span class="unit">TIME</span></div>
+      <div class="panel-bd">
+        <p class="body">整包带时区偏移，ts 统一成 <strong>UTC+8</strong> 的 ISO 字符串（样机里由 plant.js 生成），前端只负责格式化。跨班统计以 <strong>08:00 / 20:00</strong> 为界。</p>
+        <p class="small">理由：夜班跨零点，用“今天 0 点”切分会把一班拆成两半。</p>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-hd"><h3>归一：断流</h3><span class="unit">STALE</span></div>
+      <div class="panel-bd">
+        <p class="body">超过 <strong>3 个采集周期</strong>没有新值，点位质量位记为 <strong>stale</strong>，画面上保留最后有效值并打“数据陈旧”标记，绝不用 0 填充。</p>
+        <p class="small">理由：0 会被当成真实读数，直接拉低 OEE 且没人发现。</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:14px">
+    <div class="panel-hd"><h3>视觉规范</h3><span class="unit">9 COLOR / 黑底 · 灰调 · 青只做点缀</span></div>
+    <div class="panel-bd flush">
+      <div class="swatches">
+        <div class="sw"><div class="chip" style="background:#060a0b"><span>#060A0B</span></div><b>页面底</b><em>void</em></div>
+        <div class="sw"><div class="chip" style="background:#0c1214"><span>#0C1214</span></div><b>面板</b><em>panel</em></div>
+        <div class="sw"><div class="chip" style="background:#1a2426"><span>#1A2426</span></div><b>描边</b><em>line</em></div>
+        <div class="sw"><div class="chip" style="background:#6b787a"><span>#6B787A</span></div><b>次要字</b><em>ash</em></div>
+        <div class="sw"><div class="chip" style="background:#c6d1d0"><span style="color:#0a1011;mix-blend-mode:normal">#C6D1D0</span></div><b>正文</b><em>paper</em></div>
+        <div class="sw"><div class="chip" style="background:#31d4c4"><span style="color:#03100f;mix-blend-mode:normal">#31D4C4</span></div><b>运行 / 强调</b><em>run</em></div>
+        <div class="sw"><div class="chip" style="background:#76e8da"><span style="color:#03100f;mix-blend-mode:normal">#76E8DA</span></div><b>高亮数值</b><em>hi</em></div>
+        <div class="sw"><div class="chip" style="background:#bf8a3f"><span>#BF8A3F</span></div><b>预警</b><em>warn</em></div>
+        <div class="sw"><div class="chip" style="background:#b0543e"><span>#B0543E</span></div><b>故障</b><em>fault</em></div>
+      </div>
+      <div class="note">青色只出现在三处：<b>运行状态、当前选中、关键数值</b>。铺满青色等于没有重点，这也是现场大屏最容易犯的错。</div>
+    </div>
+  </div>
+
+  <div class="two" style="margin-top:14px">
+    <div class="panel">
+      <div class="panel-hd"><h3>交付清单</h3><span class="unit">ACCEPTANCE</span></div>
+      <div class="panel-bd">
+        <ul class="check">
+          <li><b>数据</b>：12 台设备状态、指标、产出与告警同源，切换页面数值连续。</li>
+          <li><b>视觉</b>：状态色四态一致；青色只做点缀；数字用等宽字体不跳动。</li>
+          <li><b>交互</b>：三维点选、设备切换、告警筛选与确认全链路可用。</li>
+          <li><b>性能</b>：原生 Canvas 与 SVG，无 WebGL 依赖，首屏不加载第三方库。</li>
+          <li><b>断流</b>：暂停采集即打“数据陈旧”，画面保留最后有效值。</li>
+          <li><b>适配</b>：手机单列、平板双列，主要数值在 360px 宽下仍可读。</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-hd"><h3>落地方式</h3><span class="unit">NO BUILD</span></div>
+      <div class="panel-bd">
+        <div class="tree">factory-visual/
+├─ <i>index.html</i>      <em>01 总览</em>
+├─ <i>devices.html</i>    <em>02 设备</em>
+├─ <i>alarms.html</i>     <em>03 告警</em>
+├─ <i>ingest.html</i>     <em>04 接入说明</em>
+└─ assets/
+   ├─ <i>style.css</i>     <em>视觉规范</em>
+   ├─ <i>plant.js</i>      <em>数据引擎（可换数据源）</em>
+   ├─ <i>charts.js</i>     <em>SVG 图表</em>
+   ├─ <i>scene.js</i>      <em>等轴测车间</em>
+   ├─ <i>overview.js</i>
+   ├─ <i>devices.js</i>
+   └─ <i>alarms.js</i></div>
+        <p class="small" style="margin-top:10px">纯静态文件，丢进 nginx / IIS / 对象存储即可访问，无需构建工具，也不需要服务端配合。<br>
+        将来接真数据时只替换 <b>plant.js</b> 里的数据源（HTTP 或 WebSocket 均可），页面与图表不用动；此时必须用 http(s) 打开，file:// 下 fetch 会被浏览器拦掉。</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <p>本页的快照导出与校验都在浏览器里完成，不发送任何请求。</p>
+  <p>PV-2026-01 · REV A · 无后端 · 图表与三维全部本地渲染</p>
+</footer>
+
+<script src="./assets/plant.js"></script>
+<script>
+(function () {
+  var el = document.getElementById('clock');
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function tick() {
+    var d = new Date();
+    el.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  }
+  tick(); setInterval(tick, 1000);
+
+  /* 快照：结构就是上面那份契约，全部在浏览器内生成，不发任何请求 */
+  var msg = document.getElementById('snapMsg');
+  var input = document.getElementById('snapIn');
+  function say(text, cls) {
+    msg.className = 'small snap-msg' + (cls ? ' ' + cls : '');
+    msg.textContent = text;
+  }
+  function iso(d) {
+    var off = -d.getTimezoneOffset(), sign = off >= 0 ? '+' : '-';
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + 'T' +
+      pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) +
+      sign + pad(Math.floor(Math.abs(off) / 60)) + ':' + pad(Math.abs(off) % 60);
+  }
+  function one(d) { return Math.round(d * 10) / 10; }
+  function snapshot() {
+    return {
+      ts: iso(new Date()),
+      devices: PLANT.devices.map(function (d) {
+        return {
+          id: d.id, line: d.line, state: d.state,
+          oee: one(d.oee), output: d.output, plan: d.plan, order: d.order,
+          metrics: {
+            spindle_temp: one(d.metrics.temp), cycle: one(d.metrics.cycle || 0),
+            vibration: one(d.metrics.vib), power_kw: d.metrics.power
+          }
+        };
+      })
+    };
+  }
+
+  document.getElementById('btnSnapOut').addEventListener('click', function () {
+    var data = snapshot(), text = JSON.stringify(data, null, 2);
+    var url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'snapshot-' + Date.now() + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+    say('已导出 ' + data.devices.length + ' 台设备 · 约 ' + Math.max(1, Math.round(text.length / 1024)) + ' KB · ts ' + data.ts, 'ok');
+  });
+
+  input.addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    var r = new FileReader();
+    r.onload = function () {
+      input.value = '';
+      var obj;
+      try { obj = JSON.parse(String(r.result)); } catch (err) { say('不是合法 JSON：' + err.message, 'err'); return; }
+      var ds = obj && obj.devices;
+      if (!ds || !ds.length) { say('缺少 devices 数组，字段不符合契约。', 'err'); return; }
+      var bad = ds.filter(function (d) { return !d || !d.id || !d.state; });
+      if (bad.length) { say('有 ' + bad.length + ' 条记录缺少 id 或 state，校验未通过。', 'err'); return; }
+      var st = {};
+      ds.forEach(function (d) { st[d.state] = (st[d.state] || 0) + 1; });
+      say('校验通过 · ' + ds.length + ' 台 · ' + Object.keys(st).map(function (k) { return k + ' ' + st[k]; }).join(' · ') + ' · ts ' + (obj.ts || '缺失'), 'ok');
+    };
+    r.onerror = function () { input.value = ''; say('读取失败，浏览器没有拿到文件内容。', 'err'); };
+    r.readAsText(f);
+  });
+})();
+</script>
+</body>
+</html>

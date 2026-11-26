@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>告警中心 · 数据采集与可视化</title>
+<meta name="description" content="车间设备告警统一列表：按等级、状态、产线筛选，支持确认与追溯。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23060a0b'/%3E%3Cpath d='M5 5h22v22H5z' fill='none' stroke='%2331d4c4' stroke-width='1.5'/%3E%3Cpath d='M11 11h10v10H11z' fill='none' stroke='%236b787a'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="./assets/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="tb-inner">
+    <a class="brand" href="./index.html">
+      <span class="b-mark"></span>
+      <span class="b-txt"><b>车间数据可视化</b><i>PLANT VISUAL · PV-2026-01</i></span>
+    </a>
+    <nav class="nav">
+      <a href="./index.html">01 总览大屏</a>
+      <a href="./devices.html">02 设备详情</a>
+      <a href="./alarms.html" class="on">03 告警中心</a>
+      <a href="./ingest.html">04 数据接入</a>
+    </nav>
+    <div class="tb-meta">
+      <span class="live" id="livePill"><i></i><span id="liveTxt">实时 · 虚拟数据</span></span>
+      <span class="clock" id="clock">--:--:--</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="page-head">
+    <div class="ph-t">
+      <div class="num">03 / ALARMS</div>
+      <h1>告警中心</h1>
+      <p>故障与预警共用一张表，靠等级区分轻重。确认只记“谁看过”，恢复才代表设备真的回来了。</p>
+    </div>
+    <div class="ctrl">
+      <button class="btn" id="btnAckAll" type="button">全部确认</button>
+      <button class="btn" id="btnPause" aria-pressed="false" type="button">暂停采集</button>
+      <button class="btn danger" id="btnFault" type="button">注入故障</button>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi">
+      <span class="k-l">24 小时内告警</span>
+      <div class="k-v"><span id="sTotal">—</span><small>条</small></div>
+      <div class="k-s"><span id="sFault">故障 0</span><span id="sWarn">预警 0</span></div>
+    </div>
+    <div class="kpi">
+      <span class="k-l">未确认</span>
+      <div class="k-v"><span id="sUnack">—</span><small>条</small></div>
+      <div class="k-s"><span>需要值班人处理</span></div>
+    </div>
+    <div class="kpi">
+      <span class="k-l">活动中</span>
+      <div class="k-v"><span id="sActive">—</span><small>条</small></div>
+      <div class="k-s"><span>尚未恢复</span></div>
+    </div>
+    <div class="kpi">
+      <span class="k-l">平均恢复时长</span>
+      <div class="k-v"><span id="sMttr">—</span><small>min</small></div>
+      <div class="k-s"><span>近 24 小时已恢复样本</span></div>
+    </div>
+  </div>
+
+  <div class="alert-grid">
+    <div style="display:grid;gap:14px">
+      <div class="panel">
+        <div class="panel-hd"><h3>等级分布</h3><span class="unit">24H</span></div>
+        <div class="panel-bd" style="padding:8px 13px 10px">
+          <div class="chart-box" id="levelDonut" style="height:150px"></div>
+          <div class="state-legend" id="levelLegend"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-hd"><h3>按产线分布</h3><span class="unit">条</span></div>
+        <div class="panel-bd flush"><div class="chart-box" id="lineBars" style="height:170px"></div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-hd"><h3>告警口径</h3><span class="unit">RULE</span></div>
+        <div class="panel-bd">
+          <div class="al-stat">
+            <div><b id="rWarn">—</b><span>预警阈值 · 连续 3 周期越线</span></div>
+            <div><b id="rDown">—</b><span>故障判定 · 状态字停机</span></div>
+          </div>
+          <p class="small" style="margin:10px 0 0">越线要连续 <b>3 个采集周期</b> 才升级为预警，避免单点毛刺刷屏；停机只认设备状态字，不做推测。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-hd"><h3>告警列表</h3><span class="unit" id="listCount">—</span></div>
+      <div class="panel-bd">
+        <div class="al-filter" id="alFilter">
+          <button class="chip on" data-k="level" data-v="ALL" type="button">全部等级</button>
+          <button class="chip" data-k="level" data-v="DOWN" type="button">故障</button>
+          <button class="chip" data-k="level" data-v="WARN" type="button">预警</button>
+          <span style="width:10px"></span>
+          <button class="chip on" data-k="status" data-v="ALL" type="button">全部状态</button>
+          <button class="chip" data-k="status" data-v="OPEN" type="button">未恢复</button>
+          <button class="chip" data-k="status" data-v="CLOSED" type="button">已恢复</button>
+          <input id="alSearch" type="search" placeholder="搜索设备 / 描述…" aria-label="搜索告警"
+                 style="flex:1 1 150px;background:#060a0b;border:1px solid #1a2426;color:#c6d1d0;font-family:var(--mono);font-size:11px;padding:4px 7px">
+        </div>
+        <div class="tbl-wrap" style="max-height:620px;overflow:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>时间</th><th>等级</th><th>设备</th><th>产线</th><th>描述</th>
+                <th>持续</th><th>状态</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="alarmRows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="note">点任意一行跳到该设备的详情页；<b>确认</b>只写确认人，不改变设备状态。</div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <p>本页全部数据由内置虚拟发生器生成，用于演示，不代表任何真实产线。</p>
+  <p>PV-2026-01 · REV A · 无后端 · 图表与三维全部本地渲染</p>
+</footer>
+
+<script src="./assets/plant.js"></script>
+<script src="./assets/charts.js"></script>
+<script src="./assets/alarms.js"></script>
+</body>
+</html>
